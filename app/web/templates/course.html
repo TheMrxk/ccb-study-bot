@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ course.title }}</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+<link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>{{ course.title }}{% if kind_label %}<span class="kind-tag {{ kind_cls }}">{{ kind_label }}</span>{% endif %}</h1>
+    <a class="btn" href="/">返回</a>
+  </header>
+
+  <div class="toolbar">
+    <button id="btnRefresh" class="btn">刷新列表</button>
+    <button id="btnStartAll" class="btn primary">全部开始</button>
+  </div>
+
+  <div id="videoList"></div>
+</div>
+
+<script>
+  const COURSE_PK = {{ course.id }};
+  const INITIAL_VIDEOS = {{ videos_json|safe }};
+</script>
+<script src="/static/course.js?v=20261008d"></script>
+</body>
+</html>

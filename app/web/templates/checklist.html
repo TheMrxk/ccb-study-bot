@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的集中培训清单</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+<link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📋 我的集中培训</h1>
+    <a class="btn" href="/">返回</a>
+  </header>
+
+  <div class="toolbar">
+    <button id="btnScan" class="btn primary">扫描 / 更新清单</button>
+    <span id="scanMsg" class="scan-msg"></span>
+  </div>
+
+  <div id="summary" class="scan-summary"></div>
+
+  <h2 class="group-title">专题班</h2>
+  <div id="workshopList" class="item-list"></div>
+
+  <h2 class="group-title">训练营</h2>
+  <div id="campList" class="item-list"></div>
+</div>
+
+<script>
+  let ITEMS = JSON.parse(`{{ items_json | safe }}`);
+
+  const ACTION_MAP = {
+    ready:  { text: "可学", cls: "done" },
+    join:   { text: "待报名", cls: "pending" },
+    blocked:{ text: "需审批·跳过", cls: "failed" },
+    closed: { text: "已结束", cls: "paused" },
+  };
+
+  async function callItem(pk, act) {
+    const r = await fetch(`/api/checklist/${pk}/${act}`, { method: "POST" });
+    return r.json();
+  }
+
+  function itemActions(it) {
+    if (it.running) {
+      return `
+        <span class="badge running">刷课中</span>
+        <button class="btn small danger js-stop" data-pk="${it.pk}">停止</button>`;
+    }
+    const a = ACTION_MAP[it.action] || { text: it.action, cls: "pending" };
+    const disabled = (it.action !== "ready");
+    return `
+      <span class="badge ${a.cls}">${a.text}</span>
+      <button class="btn small primary js-start" data-pk="${it.pk}" ${disabled?"disabled":""}>
+        ${it.action === "ready" ? "开始" : "—"}
+      </button>`;
+  }
+
+  function rowHtml(it) {
+    const skip = (it.action==='blocked' || it.action==='closed');
+    return `
+      <div class="video item-row ${skip?'is-skip':''}" data-pk="${it.pk}">
+        <div class="video-top">
+          <div class="item-main">
+            <div class="video-title">${it.title}</div>
+            <div class="video-meta">
+              学时 ${it.obtained}/${it.available} · 进度 ${it.progress}%
+            </div>
+          </div>
+          <div class="item-actions">${itemActions(it)}</div>
+        </div>
+        <div class="bar"><i style="width:${Math.min(100,it.progress)}%"></i></div>
+      </div>`;
+  }
+
+  function renderSummary() {
+    const sum = (key) => ITEMS.reduce((s,x)=>s+(+x[key]||0),0);
+    const cnt = (a) => ITEMS.filter(x => x.action===a).length;
+    document.getElementById("summary").innerHTML = `
+      <div class="card summary-card">
+        共 <b>${ITEMS.length}</b> 项 ·
+        可学 <b>${cnt('ready')}</b> ·
+        待报名 <b>${cnt('join')}</b> ·
+        跳过 <b>${cnt('blocked')+cnt('closed')}</b> ·
+        已得 <b>${sum('obtained').toFixed(2)}</b>/${sum('available').toFixed(2)} 学时
+      </div>`;
+  }
+
+  function bindRowButtons() {
+    document.querySelectorAll(".js-start").forEach(b=>{
+      b.addEventListener("click", async () => {
+        const pk = b.dataset.pk;
+        b.disabled = true; b.textContent = "展开中…";
+        const r = await callItem(pk, "start");
+        const it = ITEMS.find(x=>x.pk===+pk);
+        if (r.ok) {
+          if (it) it.running = true;
+        } else {
+          alert("启动失败：" + r.error);
+        }
+        render();
+      });
+    });
+    document.querySelectorAll(".js-stop").forEach(b=>{
+      b.addEventListener("click", async () => {
+        const pk = b.dataset.pk;
+        await callItem(pk, "stop");
+        const it = ITEMS.find(x=>x.pk===+pk);
+        if (it) it.running = false;
+        render();
+      });
+    });
+  }
+
+  function render() {
+    const ws = ITEMS.filter(x => x.item_type === "workshop");
+    const cp = ITEMS.filter(x => x.item_type === "camp");
+    document.getElementById("workshopList").innerHTML =
+      ws.map(rowHtml).join("") || `<p class="empty">暂无，点上方扫描</p>`;
+    document.getElementById("campList").innerHTML =
+      cp.map(rowHtml).join("") || `<p class="empty">暂无，点上方扫描</p>`;
+    bindRowButtons();
+    renderSummary();
+  }
+
+  document.getElementById("btnScan").addEventListener("click", async () => {
+    const msg = document.getElementById("scanMsg");
+    const btn = document.getElementById("btnScan");
+    btn.disabled = true;
+    msg.textContent = "正在扫描各栏目…";
+    try {
+      const r = await fetch("/api/scan", { method: "POST" });
+      const data = await r.json();
+      if (data.ok) location.reload();
+      else { msg.textContent = "失败：" + data.error; btn.disabled = false; }
+    } catch (e) {
+      msg.textContent = "网络错误：" + e;
+      btn.disabled = false;
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>

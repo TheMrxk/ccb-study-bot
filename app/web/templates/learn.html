@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ page_name }} · 建行学习</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+<link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+
+<div class="sidebar-mask" id="sidebarMask"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-user">
+    <div class="sb-user-name">{{ cn_name }}</div>
+    <div class="sb-user-sub">建行学习</div>
+  </div>
+  <nav class="sb-nav">
+    <a class="sb-item" href="/"><span class="sb-ico">🏠</span>主页</a>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">📘</span>集中培训<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/workshops">专题班</a>
+      </div>
+    </div>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🌐</span>网络自学<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu open">
+        <a class="sb-subitem {{ 'active' if kind=='course' }}" href="/square/course">课程</a>
+        <a class="sb-subitem {{ 'active' if kind=='wk' }}" href="/square/wk">微课</a>
+      </div>
+    </div>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🎯</span>抓取课程<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/capture">一键抓取</a>
+        <a class="sb-subitem placeholder" data-placeholder="历史课程将在后续版本提供">历史课程</a>
+      </div>
+    </div>
+    <a class="sb-item" href="#" id="openAbout"><span class="sb-ico">ℹ️</span>关于</a>
+  </nav>
+  <button class="sb-logout" id="btnLogout" type="button">退出登录</button>
+</aside>
+
+<div class="main" id="mainArea">
+  <div class="wrap">
+    <header class="main-header">
+      <button class="hamburger" id="btnToggle" type="button" aria-label="菜单">☰</button>
+      <h1>{{ page_name }}</h1>
+    </header>
+
+    <!-- 图文引导 -->
+    <section class="card guide-card">
+      <h2>怎么学{{ page_name }}？</h2>
+      <ol class="guide-steps">
+        <li><b>① 找课</b>：在浏览器打开建行学习，进入「{{ page_name }}」栏目，挑一节想学的课。</li>
+        <li><b>② 复制链接</b>：点开课程，从地址栏复制完整链接。</li>
+        <li><b>③ 粘贴开刷</b>：把链接粘贴到下方，点「拉取并学习」，程序自动报名 + 2 倍速刷课。</li>
+      </ol>
+      <a class="btn small ghost" href="https://u.ccb.com/course/#/wkindex" target="_blank" rel="noopener">🔗 去建行找{{ page_name }} ↗</a>
+    </section>
+
+    <!-- 链接输入 -->
+    <section class="card">
+      <h2>粘贴{{ page_name }}链接</h2>
+      <form id="learnForm">
+        <input name="package_id" placeholder="{{ hint }}" required>
+        <button class="btn primary" type="submit">拉取并学习</button>
+      </form>
+      <p id="learnMsg" class="msg"></p>
+    </section>
+  </div>
+</div>
+
+<script src="/static/learn.js?v=20261008d"></script>
+</body>
+</html>

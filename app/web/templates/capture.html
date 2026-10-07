@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>一键抓取 · 建行学习</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+<link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+
+<div class="sidebar-mask" id="sidebarMask"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-user">
+    <div class="sb-user-name">{{ cn_name }}</div>
+    <div class="sb-user-sub">建行学习</div>
+  </div>
+  <nav class="sb-nav">
+    <a class="sb-item" href="/"><span class="sb-ico">🏠</span>主页</a>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">📘</span>集中培训<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/workshops">专题班</a>
+      </div>
+    </div>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🌐</span>网络自学<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/square/course">课程</a>
+        <a class="sb-subitem" href="/square/wk">微课</a>
+      </div>
+    </div>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🎯</span>抓取课程<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem active" href="/capture">一键抓取</a>
+      </div>
+    </div>
+    <a class="sb-item" href="#" id="openAbout"><span class="sb-ico">ℹ️</span>关于</a>
+  </nav>
+  <button class="sb-logout" id="btnLogout" type="button">退出登录</button>
+</aside>
+
+<div class="main" id="mainArea">
+  <div class="wrap">
+    <header class="main-header">
+      <button class="hamburger" id="btnToggle" type="button" aria-label="菜单">☰</button>
+      <h1>一键抓取</h1>
+    </header>
+
+    <section class="card">
+      <h2>① 安装抓取书签（仅一次）</h2>
+      <p class="tip">把下面这个链接<b>长按 → 添加书签/收藏</b>（电脑端可直接拖到书签栏）：</p>
+      <a id="bmLink" class="bm-link" href="#">⭐ 抓到这课</a>
+      <p class="tip dim">以后在 u.ccb.com 打开任意课程，点一下这个书签，就会自动跳回本页面开始刷课。</p>
+    </section>
+
+    <section class="card" id="autoCard">
+      <h2>② 正在处理…</h2>
+      <form id="capForm">
+        <input name="url" id="capUrl" value="{{ url }}" readonly>
+        <button class="btn primary" type="submit">开始刷课</button>
+      </form>
+      <p id="capMsg" class="msg"></p>
+    </section>
+  </div>
+</div>
+
+<script>
+// bookmarklet：带当前页URL跳回 /capture
+const bm = "javascript:(function(){location.href='"+location.origin+"/capture?url='+encodeURIComponent(location.href)})();";
+document.getElementById('bmLink').href = bm;
+</script>
+<script src="/static/capture.js?v=20261008d"></script>
+</body>
+</html>

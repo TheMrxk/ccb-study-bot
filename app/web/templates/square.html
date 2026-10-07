@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ page_name }} · 建行学习</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+
+<div class="sidebar-mask" id="sidebarMask"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-user">
+    <div class="sb-user-name">{{ cn_name }}</div>
+    <div class="sb-user-sub">建行学习</div>
+  </div>
+  <nav class="sb-nav">
+    <a class="sb-item" href="/"><span class="sb-ico">🏠</span>主页</a>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">📘</span>集中培训<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/workshops">专题班</a>
+      </div>
+    </div>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🌐</span>网络自学<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu open">
+        <a class="sb-subitem {{ 'active' if kind=='course' }}" href="/square/course">课程</a>
+        <a class="sb-subitem {{ 'active' if kind=='wk' }}" href="/square/wk">微课</a>
+      </div>
+    </div>
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🎯</span>抓取课程<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/capture">一键抓取</a>
+        <a class="sb-subitem placeholder" data-placeholder="历史课程将在后续版本提供">历史课程</a>
+      </div>
+    </div>
+    <a class="sb-item" href="#" id="openAbout"><span class="sb-ico">ℹ️</span>关于</a>
+  </nav>
+  <button class="sb-logout" id="btnLogout" type="button">退出登录</button>
+</aside>
+
+<div class="main" id="mainArea">
+  <div class="wrap">
+    <header class="main-header">
+      <button class="hamburger" id="btnToggle" type="button" aria-label="菜单">☰</button>
+      <h1>{{ page_name }}</h1>
+      <div class="header-controls">
+        <div class="seg-toggle" id="segShow">
+          <button type="button" class="seg-btn active" data-show="unlearned">未学</button>
+          <button type="button" class="seg-btn" data-show="all">全部</button>
+        </div>
+      </div>
+    </header>
+
+    <form class="square-search" id="searchForm">
+      <input id="searchInput" placeholder="搜索{{ page_name }}标题…" autocomplete="off">
+      <button class="btn small" type="submit">搜索</button>
+      <button class="btn small primary" id="btnLearn10" type="button">⚡ 学习前10节</button>
+    </form>
+
+    <p id="sqMsg" class="msg"></p>
+    <div id="sqGrid" class="cover-grid"></div>
+    <div class="load-more">
+      <button id="btnMore" class="btn small ghost" type="button">加载更多</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/square.js?v=20261008d"></script>
+</body>
+</html>

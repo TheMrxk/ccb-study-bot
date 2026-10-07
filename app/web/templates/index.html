@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>建行学习刷课</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+<link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+
+<!-- ============ 侧边栏 ============ -->
+<div class="sidebar-mask" id="sidebarMask"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-user">
+    <div class="sb-user-name">{{ cn_name }}</div>
+    <div class="sb-user-sub">建行学习</div>
+  </div>
+
+  <nav class="sb-nav">
+    <a class="sb-item active" href="/"><span class="sb-ico">🏠</span>主页</a>
+
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">📘</span>集中培训<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/workshops">专题班</a>
+      </div>
+    </div>
+
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🌐</span>网络自学<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/square/course">课程</a>
+        <a class="sb-subitem" href="/square/wk">微课</a>
+      </div>
+    </div>
+
+    <div class="sb-group">
+      <div class="sb-item parent"><span class="sb-ico">🎯</span>抓取课程<span class="sb-caret">▾</span></div>
+      <div class="sb-submenu">
+        <a class="sb-subitem" href="/capture">一键抓取</a>
+        <a class="sb-subitem placeholder" data-placeholder="历史课程(最近6期浏览记录)将在后续提供">历史课程</a>
+      </div>
+    </div>
+
+    <a class="sb-item" href="#" id="openAbout"><span class="sb-ico">ℹ️</span>关于</a>
+  </nav>
+
+  <button class="sb-logout" id="btnLogout" type="button">退出登录</button>
+</aside>
+
+<!-- ============ 主内容 ============ -->
+<div class="main" id="mainArea">
+  <div class="wrap">
+    <header class="main-header">
+      <button class="hamburger" id="btnToggle" type="button" aria-label="菜单">☰</button>
+      <h1>建行学习 · 自动刷课</h1>
+      <div class="header-controls">
+        <label class="ctl-box">倍速
+          <select id="speed">
+            <option value="1">1x</option>
+            <option value="2" selected>2x</option>
+          </select>
+        </label>
+        <label class="ctl-box">并发
+          <select id="concurrency">
+            <option value="0" selected>无限制</option>
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+            <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+            <option value="8">8</option><option value="10">10</option><option value="15">15</option>
+            <option value="20">20</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <section class="hours-grid">
+      {% for hc in hours_cards %}
+      <div class="card hours-card">
+        <div class="hours-head">
+          <div class="hours-card-title">{{ hc.name }}</div>
+          {% if loop.index0 == 0 %}
+          <button id="btnScan" class="corner-scan" type="button" title="一键扫描集中培训课程">🔍 一键扫描</button>
+          {% endif %}
+        </div>
+        <div class="hours-numbers">
+          <span class="hours-done">{{ hc.done }}</span>
+          <span class="hours-target">/ {{ hc.target }} 学时</span>
+        </div>
+        <div class="bar"><i style="width:{{ hc.pct }}%"></i></div>
+        <div class="hours-gap">还差 <b>{{ hc.gap }}</b> 学时 · {{ hc.pct }}%</div>
+        {% if loop.index0 == 0 %}<div id="scanMsg" class="msg scan-msg"></div>{% endif %}
+      </div>
+      {% endfor %}
+    </section>
+
+    <section class="card">
+      <h2>添加课程</h2>
+      <form id="addForm" class="row">
+        <input name="package_id" placeholder="粘贴课程 / 专题班 / 直播链接，或课程 ID" required>
+        <input name="title" placeholder="备注名（可选）">
+        <button class="btn primary" type="submit">拉取课程</button>
+      </form>
+      <p id="addMsg" class="msg"></p>
+    </section>
+
+    <section class="card board-card">
+      <div class="tabs" role="tablist">
+        <button class="tab {% if default_tab=='watching' %}active{% endif %}" data-tab="watching" type="button">
+          🔵 正在观看 <span class="tab-count" id="cnt-watching">{{ buckets.watching|length }}</span>
+        </button>
+        <button class="tab {% if default_tab=='ready' %}active{% endif %}" data-tab="ready" type="button">
+          🟡 准备观看 <span class="tab-count" id="cnt-ready">{{ buckets.ready|length }}</span>
+        </button>
+        <button class="tab {% if default_tab=='done' %}active{% endif %}" data-tab="done" type="button">
+          ✅ 已观看 <span class="tab-count" id="cnt-done">{{ buckets.done|length }}</span>
+        </button>
+      </div>
+
+      {% set tab_meta = [
+        ("watching", "正在观看的课程"),
+        ("ready", "已拉取但未开始 / 未全部看完"),
+        ("done", "已全部看完的课程")
+      ] %}
+      {% for key, hint in tab_meta %}
+      <div class="tab-pane {% if default_tab==key %}active{% endif %}" id="pane-{{ key }}">
+        <div class="pane-toolbar">
+          <span class="pane-hint">{{ hint }}</span>
+          <div class="pane-tools">
+            {% if key == 'ready' %}
+            <button class="btn primary small" id="btnStartAllReady" type="button">全部开始</button>
+            <button class="btn small js-clear" data-bucket="ready" type="button">清除记录</button>
+            {% elif key == 'done' %}
+            <button class="btn small js-clear" data-bucket="done" type="button">清除记录</button>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="course-list">
+          {% for c in buckets[key] %}
+          <div class="course-row" data-course="{{ c.id }}">
+            <!-- 硬定位角标：只放类型，与标题解耦 -->
+            <div class="corner-tag">
+              {% if c.kind == 'workshop' %}<span class="kind-tag ws">专题班</span>
+              {% elif c.kind == 'wk' %}<span class="kind-tag wk">微课</span>
+              {% else %}<span class="kind-tag course">课程</span>{% endif %}
+            </div>
+
+            <a class="course-main" href="/courses/{{ c.id }}">
+              <div class="course-title">{{ c.title }}</div>
+              <div class="bar mini"><i class="js-bar" style="width:{{ c.pct }}%"></i></div>
+              <div class="course-sub js-sub">{{ c.done }}/{{ c.total }} 个视频 · {{ c.pct }}%</div>
+            </a>
+
+            <div class="course-actions">
+              {% if key == 'watching' %}<span class="state-tag running">运行中</span>
+              {% elif key == 'done' %}<span class="state-tag done">已完成</span>{% endif %}
+              {% if key == 'watching' %}
+              <button class="btn small danger js-stop" data-course="{{ c.id }}">停止</button>
+              {% else %}
+              <button class="btn small primary js-start" data-course="{{ c.id }}">
+                {% if c.done>0 and c.done<c.total %}继续{% else %}开始{% endif %}</button>
+              {% endif %}
+              <a class="expand-link" href="/courses/{{ c.id }}">›</a>
+            </div>
+          </div>
+          {% else %}
+          <p class="empty">暂无课程。</p>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+
+<!-- 关于弹窗 -->
+<div class="modal-mask" id="aboutModal">
+  <div class="modal-box">
+    <div class="modal-title">关于</div>
+    <div class="modal-body" id="aboutBody"></div>
+    <div class="modal-footer">
+      <button class="btn primary" id="closeAbout" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/index.js?v=20261008d"></script>
+</body>
+</html>

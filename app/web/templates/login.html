@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · 建行学习刷课</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+<link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+<div class="wrap login-wrap">
+  <div class="login-card">
+    <div class="login-brand">🏦 建行学习刷课助手</div>
+    <p class="login-sub">请输入建行学习账号密码，系统将自动登录</p>
+
+    <form id="loginForm">
+      <label class="field-label">账号</label>
+      <input id="username" name="username" type="text" autocomplete="username"
+             placeholder="建行学习账号（如 xxx.ln）" required>
+
+      <label class="field-label">密码</label>
+      <input id="password" name="password" type="password" autocomplete="current-password"
+             placeholder="密码" required>
+
+      <!-- 风险声明确认：点整行弹声明，复选框不手动切换 -->
+      <div class="declare-check" id="declareRow">
+        <input type="checkbox" id="agreeDeclare" tabindex="-1"
+               onclick="return false">
+        <span class="declare-text">我已阅读并同意 <a href="#" id="openDeclare">《使用风险声明》</a></span>
+      </div>
+
+      <button class="btn primary login-btn" id="loginBtn" type="submit">登 录</button>
+      <p id="loginWait" class="login-wait" style="display:none"></p>
+      <p id="loginError" class="login-error"></p>
+    </form>
+
+    <p class="login-safe">🔒 账号密码仅用于本次登录，不写入配置文件、不打印日志，服务重启即失效</p>
+  </div>
+</div>
+
+<!-- 风险声明弹窗 -->
+<div class="modal-mask" id="declareModal">
+  <div class="modal-box">
+    <div class="modal-title">使用风险声明</div>
+    <div class="modal-body">
+      <p>1. 本工具仅用于个人学习效率辅助。<b>是否使用、如何使用完全是使用者个人的自主行为</b>，由使用者自行判断并承担一切风险与后果。</p>
+      <p>2. 本工具及开发者<b>不对使用行为及可能产生的任何后果承担责任</b>，包括但不限于账号异常、学习记录被清除、单位管理处分等。</p>
+      <p>3. 账号、密码等信息仅在本次登录过程中于内存临时使用，不写入任何配置文件、不打印日志、服务重启即清除。</p>
+      <p>4. 请使用者遵守所在单位及平台的各项规定，<b>合理、节制使用</b>，不干扰平台正常运行。</p>
+      <p>5. 出于账号安全考虑，<b>使用结束后请及时修改密码</b>，不在公共或不可信环境下使用本工具。</p>
+      <p>6. 一旦开始使用，即视为已阅读、理解并同意本声明全部内容。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" id="agreeBtn" type="button" disabled>
+        <span id="agreeBtnText">请阅读（5 秒）</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const loginBtn = document.getElementById("loginBtn");
+  const waitEl = document.getElementById("loginWait");
+  const errEl = document.getElementById("loginError");
+  const agreeBox = document.getElementById("agreeDeclare");
+  const modal = document.getElementById("declareModal");
+  const agreeBtn = document.getElementById("agreeBtn");
+  const agreeBtnText = document.getElementById("agreeBtnText");
+  let waitTimer = null;
+  let declareTimer = null;
+
+  // 打开声明并启动 5 秒阅读倒计时
+  function openDeclare() {
+    modal.classList.add("show");
+    if (declareTimer) clearInterval(declareTimer);
+    let left = 5;
+    agreeBtn.disabled = true;
+    agreeBtnText.textContent = `请阅读（${left} 秒）`;
+    declareTimer = setInterval(() => {
+      left -= 1;
+      if (left > 0) {
+        agreeBtnText.textContent = `请阅读（${left} 秒）`;
+      } else {
+        clearInterval(declareTimer);
+        declareTimer = null;
+        agreeBtn.disabled = false;
+        agreeBtnText.textContent = "我已阅读并同意";
+      }
+    }, 1000);
+  }
+  function closeDeclare() {
+    modal.classList.remove("show");
+  }
+
+  // 点链接：打开声明
+  document.getElementById("openDeclare").addEventListener("click", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    openDeclare();
+  });
+  // 点整行（复选框/文字空白处）：未同意过则弹声明
+  document.getElementById("declareRow").addEventListener("click", () => {
+    openDeclare();
+  });
+  // 点同意：复选框打勾并关闭
+  agreeBtn.addEventListener("click", () => {
+    agreeBox.checked = true;
+    closeDeclare();
+  });
+
+  // 登录等待提示：按钮变灰 + 倒计时（登录成功会提前跳转，无需等倒计时结束）
+  function startWaiting() {
+    let left = 30;
+    loginBtn.disabled = true;
+    loginBtn.classList.add("loading");
+    loginBtn.textContent = "登录中…";
+    waitEl.style.display = "block";
+    waitEl.textContent = `排队登录中，请稍候（约 ${left} 秒），完成后将自动进入…`;
+    waitTimer = setInterval(() => {
+      left -= 1;
+      if (left > 0) {
+        waitEl.textContent = `排队登录中，请稍候（约 ${left} 秒），完成后将自动进入…`;
+      } else {
+        waitEl.textContent = "仍在处理中，请稍候，完成后将自动进入…";
+      }
+    }, 1000);
+  }
+  function stopWaiting() {
+    if (waitTimer) clearInterval(waitTimer);
+    waitTimer = null;
+    waitEl.style.display = "none";
+    loginBtn.disabled = false;
+    loginBtn.classList.remove("loading");
+    loginBtn.textContent = "登 录";
+  }
+
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errEl.textContent = "";
+    if (!agreeBox.checked) {
+      errEl.textContent = "请先阅读并勾选《使用风险声明》";
+      return;
+    }
+    const body = new URLSearchParams({
+      username: document.getElementById("username").value,
+      password: document.getElementById("password").value,
+    });
+    startWaiting();
+    try {
+      const r = await fetch("/api/login", { method: "POST", body });
+      const data = await r.json();
+      if (data.ok) {
+        // 不停止等待，直接跳转；跳走即结束
+        location.href = "/";
+        return;
+      }
+      stopWaiting();
+      errEl.textContent = "登录失败：" + (data.error || "未知错误");
+    } catch (err) {
+      stopWaiting();
+      errEl.textContent = "网络错误：" + err;
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ course.title }}</title>
+  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+<link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#4a7bff">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js"));}</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>{{ course.title }}</h1>
+    <a class="btn" href="/">返回</a>
+  </header>
+
+  <section class="card">
+    <div class="ws-meta">
+      <span>课程 <b>{{ meta.courseCount }}</b></span>
+      <span>必修 <b>{{ meta.compulsoryCount }}</b></span>
+      <span>选修 <b>{{ meta.electiveCount }}</b></span>
+      <span>总学时 <b>{{ meta.totalHours }}</b></span>
+      <span class="ws-progress">整体进度 <b>{{ meta.progress }}%</b></span>
+    </div>
+  </section>
+
+  <div class="toolbar">
+    <button id="btnRefresh" class="btn">刷新</button>
+    <button id="btnStartAll" class="btn primary">整个专题班开始</button>
+    <button id="btnStopAll" class="btn danger" style="display:none">整个专题班停止</button>
+  </div>
+
+  <div id="childList"></div>
+</div>
+
+<script>
+  const WS_PK = {{ course.id }};
+  const CHILDREN = {{ children_json|safe }};
+  let BATCH_ID = "";
+
+  function render(list) {
+    const root = document.getElementById("childList");
+    root.innerHTML = "";
+    list.forEach((c) => {
+      const a = document.createElement("a");
+      a.className = "video child-item";
+      a.href = `/courses/${c.id}`;
+      a.innerHTML = `
+        <div class="video-top">
+          <div>
+            <div class="video-title">${c.title}</div>
+            <div class="video-meta">视频 ${c.done}/${c.total}</div>
+          </div>
+          <span class="badge ${c.pct >= 100 ? "done" : "pending"}">${c.pct}%</span>
+        </div>
+        <div class="bar"><i style="width:${c.pct}%"></i></div>`;
+      root.appendChild(a);
+    });
+  }
+
+  document.getElementById("btnRefresh").addEventListener("click", async () => {
+    await fetch(`/api/courses/${WS_PK}/refresh`, { method: "POST" });
+    location.reload();
+  });
+
+  document.getElementById("btnStartAll").addEventListener("click", async () => {
+    const body = new URLSearchParams();
+    const r = await fetch(`/api/workshops/${WS_PK}/startall`, { method: "POST", body });
+    const data = await r.json();
+    if (data.ok) {
+      BATCH_ID = data.batch_id;
+      document.getElementById("btnStopAll").style.display = "inline-block";
+    } else {
+      alert("启动失败：" + (data.error || ""));
+    }
+    setTimeout(() => location.reload(), 1000);
+  });
+
+  document.getElementById("btnStopAll").addEventListener("click", async () => {
+    const body = new URLSearchParams({ batch_id: BATCH_ID });
+    const r = await fetch(`/api/workshops/${WS_PK}/stopall`, { method: "POST", body });
+    const data = await r.json();
+    if (!data.ok) alert("停止失败：" + (data.error || ""));
+    setTimeout(() => location.reload(), 800);
+  });
+
+  render(CHILDREN);
+
+  (async () => {
+    try {
+      const r = await fetch(`/api/workshops/${WS_PK}/active-batch`);
+      const d = await r.json();
+      if (d.batch_id) {
+        BATCH_ID = d.batch_id;
+        document.getElementById("btnStopAll").style.display = "inline-block";
+      }
+    } catch (e) {}
+  })();
+</script>
+</body>
+</html>

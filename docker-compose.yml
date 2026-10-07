@@ -1,0 +1,33 @@
+services:
+  app:
+    build: ./app
+    container_name: ccb-course-bot-app
+    restart: unless-stopped
+    environment:
+      LOGIN_WORKER_URL: http://login-worker:8000
+      DATABASE_URL: sqlite+aiosqlite:////data/ccb_course.db
+      ENV_FILE: /run/secrets/env
+    ports:
+      - "${WEB_PORT:-8090}:8090"
+    volumes:
+      - ./data:/data
+      - ./.env:/run/secrets/env:ro
+    depends_on:
+      - login-worker
+    networks:
+      - ccb-net
+
+  login-worker:
+    build: ./login-worker
+    container_name: ccb-course-bot-login
+    restart: unless-stopped
+    environment:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    volumes:
+      - ./.env:/run/secrets/env:ro
+    networks:
+      - ccb-net
+
+networks:
+  ccb-net:
+    driver: bridge
