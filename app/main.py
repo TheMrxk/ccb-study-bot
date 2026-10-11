@@ -18,7 +18,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 
 from database import SessionLocal, init_db
-from models import Course, StudyItem, Video
+from models import Announcement, Course, StudyItem, Video
+from announcements import ANNOUNCEMENTS
 from services.runner import runner
 from services.scanner import scan_all
 from services.sync import sync_course, sync_workshop
@@ -250,45 +251,48 @@ async def capture(request: Request, url: str = "", text: str = "", title: str = 
     )
 
 
-@app.post("/api/capture")
-async def api_capture(request: Request):
+async def _capture_one(client, ccb: str, raw: str, kind: str = "") -> dict:
+    """单条链接学习：专题班走 learn_workshop，课程/微课同步入库并整课开刷。
+
+    幂等：sync 为 upsert，重复提交同一课程不会产生重复记录。
+    返回 {"kind": ..., "videos": n}。
+    """
     from services import sync as sync_svc
-    ccb = _require_login()
-    form = await request.form()
-    url = str(form.get("url") or "")
-    kind = str(form.get("kind") or "")
-    raw = url.strip()
     is_workshop = "workshop" in raw or "myworkshop" in raw
     is_case = "case" in raw
+    if is_workshop:
+        wid = extract_course_id(raw)
+        await runner.learn_workshop(wid, ccb)
+        return {"kind": "workshop", "videos": 0}
+    ck = kind if kind in ("wk", "course") else ("case" if is_case else "course")
+    pid, n = await sync_svc.sync_course(
+        client, extract_course_id(raw), "", owner_ccb=ccb, kind=ck)
+    async with SessionLocal() as session:
+        course_pk = (await session.execute(
+            select(Course.id).where(
+                Course.package_id == pid, Course.owner_ccb == ccb)
+        )).scalar_one_or_none()
+    if course_pk is not None:
+        await runner.start_course(course_pk, owner_ccb=ccb)
+    return {"kind": ck, "videos": n}
+
+
+@app.post("/api/capture")
+async def api_capture(request: Request):
+    ccb = _require_login()
+    form = await request.form()
+    raw = str(form.get("url") or "").strip()
+    kind = str(form.get("kind") or "")
     client = await runner.client_for_user(ccb)
     try:
-        if is_workshop:
-            wid = extract_course_id(raw)
-            result = await runner.learn_workshop(wid, ccb)
-            kind = "workshop"
-        else:
-            ck = kind if kind in ("wk", "course") else (
-                "case" if is_case else "course")
-            pid, n = await sync_svc.sync_course(
-                client, extract_course_id(raw), "",
-                owner_ccb=ccb, kind=ck)
-            # 找到本地课程并启动整个课程
-            async with SessionLocal() as session:
-                course_pk = (await session.execute(
-                    select(Course.id).where(
-                        Course.package_id == pid,
-                        Course.owner_ccb == ccb,
-                    )
-                )).scalar_one_or_none()
-            if course_pk is not None:
-                await runner.start_course(course_pk, owner_ccb=ccb)
-            result, kind = {"videos": n}, ck
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("capture failed")
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+        try:
+            result = await _capture_one(client, ccb, raw, kind)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("capture failed")
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     finally:
         await client.aclose()
-    return {"ok": True, "kind": kind, **result}
+    return {"ok": True, **result}
 
 
 @app.get("/api/workshops")
@@ -332,8 +336,10 @@ async def list_workshops(show: str = "unlearned"):
         await client.aclose()
 
     items = []
+    ws_local = await _local_workshop_map(ccb)
     for it, p in zip(raw_items, progs):
         it["my_progress"] = p
+        it["local_state"] = ws_local.get(str(it["id"]), "")
         if show == "all" or not (p is not None and p >= 100):
             items.append(it)
     return {"ok": True, "items": items, "show": show}
@@ -348,6 +354,355 @@ async def learn_workshop(workshop_id: str = Form(...)):
         logger.exception("learn workshop failed")
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     return {"ok": True, **result}
+
+
+async def _local_workshop_map(ccb: str) -> dict[str, str]:
+    """返回本账号本地专题班 {workshopId(父Course.package_id): 状态}。
+
+    专题班父记录不直挂视频，需递归所有子孙课程，看子孙视频：
+    任一在播(running/queued 且任务存活)->playing；
+    全部 done->done；其余（有未完成）->added。
+    """
+    from collections import defaultdict
+    async with SessionLocal() as session:
+        courses = list((await session.execute(
+            select(Course).where(Course.owner_ccb == ccb)
+        )).scalars())
+        videos = list((await session.execute(
+            select(Video).where(Video.owner_ccb == ccb)
+        )).scalars())
+
+    children: dict[int, list[int]] = defaultdict(list)
+    by_id: dict[int, Course] = {}
+    for c in courses:
+        by_id[c.id] = c
+        if c.parent_course_id is not None:
+            children[c.parent_course_id].append(c.id)
+
+    vids_by_course: dict[int, list] = defaultdict(list)
+    for v in videos:
+        vids_by_course[v.course_id].append(v)
+
+    def descendants(root: int) -> list[int]:
+        out: list[int] = []
+        stack = list(children.get(root, []))
+        while stack:
+            cur = stack.pop()
+            out.append(cur)
+            stack.extend(children.get(cur, []))
+        return out
+
+    result: dict[str, str] = {}
+    for c in courses:
+        if c.kind != "workshop" or c.parent_course_id is not None:
+            continue  # 只处理顶层专题班
+        all_ids = [c.id] + descendants(c.id)
+        has_playing = False
+        has_unfinished = False
+        any_video = False
+        for cid in all_ids:
+            for v in vids_by_course.get(cid, []):
+                any_video = True
+                if v.status in ("running", "queued") and runner.is_active(v.id):
+                    has_playing = True
+                if v.status != "done":
+                    has_unfinished = True
+        if has_playing:
+            st = "playing"
+        elif any_video and not has_unfinished:
+            st = "done"
+        elif any_video:
+            st = "added"
+        else:
+            st = "added"
+        result[c.package_id] = st
+    return result
+
+
+async def _local_video_map(ccb: str) -> dict[str, str]:
+    """返回本账号本地视频 {parent_id(广场课程UUID): 本地状态}。
+
+    running/queued 且任务存活 -> playing（锁定）；
+    done -> done；其余（pending/paused/failed）-> added（可继续，不锁）。
+    """
+    out: dict[str, str] = {}
+    async with SessionLocal() as session:
+        rows = (await session.execute(
+            select(Video).where(Video.owner_ccb == ccb)
+        )).scalars()
+        for v in rows:
+            if v.status in ("running", "queued") and runner.is_active(v.id):
+                st = "playing"
+            elif v.status == "done":
+                st = "done"
+            else:
+                st = "added"
+            if v.parent_id:
+                # playing 优先（一个课程可能多条视频记录）
+                if out.get(v.parent_id) != "playing":
+                    out[v.parent_id] = st
+    return out
+
+
+async def _fetch_unlearned(client, module_type: int, need: int,
+                           title: str = "") -> list[dict]:
+    """从广场扫描「未完成」课程，最多取到 need 条。
+
+    复用建行 centre/list 接口 + 逐条真实进度过滤（同 square unlearned 逻辑）。
+    返回 _map_item 结构（含 hours 真实学时、knowledge_url）。
+    """
+    import asyncio as _aio
+    module_map_inv = {1: "course", 4: "wk"}
+    kind = module_map_inv.get(module_type, "course")
+    MAX_SCAN = 300
+    page = 20
+    raw_off = 0
+    out: list[dict] = []
+    sem = _aio.Semaphore(10)
+    while raw_off < MAX_SCAN and len(out) < need:
+        url = ("https://api.u.ccb.com/v1/userSide/knowledge/centre/list"
+               f"?offset={raw_off}&limit={page}")
+        body = {"title": title, "moduleType": module_type, "orderType": 1,
+                "displayEBookFlag": 0, "authTagIds": "[]", "theDeptFlag": 0,
+                "lastMonth": 0, "orderTypeBy": 1}
+        r = await client._client.post(url, json=body, timeout=30)
+        if r.status_code != 200:
+            break
+        rows = r.json().get("datas") or r.json().get("data") or []
+        if not rows:
+            break
+
+        async def _check(x):
+            async with sem:
+                p = await client.fetch_knowledge_progress(str(x.get("id")))
+            return x, p
+
+        checked = await _aio.gather(*[_check(x) for x in rows])
+        for x, p in checked:
+            if not (p is not None and p >= 100):
+                it = {
+                    "id": x.get("id"), "title": x.get("title"),
+                    "hours": x.get("knowledgeHours"),
+                    "knowledge_url": x.get("knowledgeUrl"),
+                    "kind": kind,
+                }
+                out.append(it)
+                if len(out) >= need:
+                    break
+        raw_off += len(rows)
+        if len(rows) < page:
+            break
+    return out
+
+
+ONLINE_TARGET_HOURS = 51.0
+
+
+async def _fetch_unlearned_wks_shortest(client, gap_hours: float,
+                                        title: str = "") -> list[dict]:
+    """扫描未学微课，按学时「从小到大」选取，累计学时覆盖 gap_hours。
+
+    优先刷最短的课以最快刷满。收集后排序、从最短开始累加。
+    """
+    import asyncio as _aio
+    module_type = 4
+    kind = "wk"
+    MAX_SCAN = 400
+    page = 20
+    raw_off = 0
+    pool: list[dict] = []
+    sem = _aio.Semaphore(10)
+    while raw_off < MAX_SCAN:
+        url = ("https://api.u.ccb.com/v1/userSide/knowledge/centre/list"
+               f"?offset={raw_off}&limit={page}")
+        body = {"title": title, "moduleType": module_type, "orderType": 1,
+                "displayEBookFlag": 0, "authTagIds": "[]", "theDeptFlag": 0,
+                "lastMonth": 0, "orderTypeBy": 1}
+        r = await client._client.post(url, json=body, timeout=30)
+        if r.status_code != 200:
+            break
+        rows = r.json().get("datas") or r.json().get("data") or []
+        if not rows:
+            break
+
+        async def _check(x):
+            async with sem:
+                p = await client.fetch_knowledge_progress(str(x.get("id")))
+            return x, p
+
+        checked = await _aio.gather(*[_check(x) for x in rows])
+        for x, p in checked:
+            if not (p is not None and p >= 100):
+                pool.append({
+                    "id": x.get("id"), "title": x.get("title"),
+                    "hours": float(x.get("knowledgeHours") or 0),
+                    "knowledge_url": x.get("knowledgeUrl"),
+                    "kind": kind,
+                })
+        raw_off += len(rows)
+        if len(rows) < page:
+            break
+
+    # 学时升序：最短的先刷；加 0.5 学时冗余保证够
+    pool.sort(key=lambda it: it["hours"])
+    out: list[dict] = []
+    acc = 0.0
+    for it in pool:
+        out.append(it)
+        acc += it["hours"]
+        if acc >= gap_hours + 0.5:
+            break
+    return out
+
+
+async def _capture_list(client, ccb: str, selected: list[dict], conc: int = 5):
+    """并发 capture 一批课程，返回统计 dict。"""
+    import asyncio as _aio
+    cap_sem = _aio.Semaphore(conc)
+    results = {"ok": 0, "fail": 0, "errors": []}
+    n_course = n_wk = 0
+    got_hours = 0.0
+
+    async def _run(it):
+        nonlocal n_course, n_wk, got_hours
+        url = "https://u.ccb.com" + str(it.get("knowledge_url") or "")
+        async with cap_sem:
+            try:
+                await _capture_one(client, ccb, url, it["kind"])
+                results["ok"] += 1
+                got_hours += float(it.get("hours") or 0)
+                if it["kind"] == "wk":
+                    n_wk += 1
+                else:
+                    n_course += 1
+            except Exception as exc:  # noqa: BLE001
+                results["fail"] += 1
+                if len(results["errors"]) < 5:
+                    results["errors"].append(str(exc)[:120])
+
+    await _aio.gather(*[_run(it) for it in selected])
+    results.update(n_course=n_course, n_wk=n_wk, got_hours=round(got_hours, 2))
+    return results
+
+
+@app.post("/api/auto-fill-online")
+async def auto_fill_online():
+    """一键补齐网络自学学时（固定目标51学时）。
+
+    选课：先取课程广场前30节未学课按真实学时累加；不足部分用微课补齐。
+    选中课程逐条 capture 入库并自动开刷，单条失败不阻塞。
+    """
+    import asyncio as _aio
+    ccb = _require_login()
+    client = await runner.client_for_user(ccb)
+    try:
+        try:
+            h = await client.fetch_study_hours_home()
+            done_hours = float(h.get("yearOnlDrtn") or 0)
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                {"ok": False, "error": f"读取当前学时失败：{exc}"}, status_code=400)
+
+        gap = round(ONLINE_TARGET_HOURS - done_hours, 2)
+        if gap <= 0:
+            return {"ok": True, "already_done": True, "done_hours": done_hours,
+                    "message": f"网络自学已完成 {done_hours} 学时，无需补齐"}
+
+        # 1) 课程前30节未学
+        courses = await _fetch_unlearned(client, 1, 30)
+        selected: list[dict] = []
+        acc = 0.0
+        for it in courses:
+            selected.append(it)
+            acc += float(it.get("hours") or 0)
+            if acc >= gap:
+                break
+        # 2) 不足则用微课补（上限200节兜底）
+        if acc < gap:
+            wks = await _fetch_unlearned(client, 4, 200)
+            for it in wks:
+                selected.append(it)
+                acc += float(it.get("hours") or 0)
+                if acc >= gap:
+                    break
+
+        if not selected:
+            return JSONResponse(
+                {"ok": False, "error": "广场未找到可学的未完成课程"}, status_code=400)
+
+        # 逐条 capture，并发5（加速但不过度请求）
+        cap_sem = _aio.Semaphore(5)
+        results = {"ok": 0, "fail": 0, "errors": []}
+        n_course = n_wk = 0
+        got_hours = 0.0
+
+        async def _run(it):
+            nonlocal n_course, n_wk, got_hours
+            url = "https://u.ccb.com" + str(it.get("knowledge_url") or "")
+            async with cap_sem:
+                try:
+                    await _capture_one(client, ccb, url, it["kind"])
+                    results["ok"] += 1
+                    got_hours += float(it.get("hours") or 0)
+                    if it["kind"] == "wk":
+                        n_wk += 1
+                    else:
+                        n_course += 1
+                except Exception as exc:  # noqa: BLE001
+                    results["fail"] += 1
+                    if len(results["errors"]) < 5:
+                        results["errors"].append(str(exc)[:120])
+
+        await _aio.gather(*[_run(it) for it in selected])
+
+        return {"ok": True, "already_done": False, "done_hours": done_hours,
+                "target": ONLINE_TARGET_HOURS, "gap": gap,
+                "selected": len(selected), "started": results["ok"],
+                "failed": results["fail"], "errors": results["errors"],
+                "n_course": n_course, "n_wk": n_wk,
+                "got_hours": round(got_hours, 2)}
+    finally:
+        await client.aclose()
+
+
+@app.post("/api/auto-fill-online-fast")
+async def auto_fill_online_fast():
+    """极速补齐网络自学学时：只刷微课、按学时从小到大选，全并发刷满。"""
+    import asyncio as _aio
+    ccb = _require_login()
+    client = await runner.client_for_user(ccb)
+    try:
+        try:
+            h = await client.fetch_study_hours_home()
+            done_hours = float(h.get("yearOnlDrtn") or 0)
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                {"ok": False, "error": f"读取当前学时失败：{exc}"}, status_code=400)
+
+        gap = round(ONLINE_TARGET_HOURS - done_hours, 2)
+        if gap <= 0:
+            return {"ok": True, "already_done": True, "done_hours": done_hours,
+                    "message": f"网络自学已完成 {done_hours} 学时，无需补齐"}
+
+        selected = await _fetch_unlearned_wks_shortest(client, gap)
+
+        if not selected:
+            return JSONResponse(
+                {"ok": False,
+                 "error": "微课广场未找到可学的未完成微课"}, status_code=400)
+
+        # 全并发 capture（微课短小，极速刷满）
+        stats = await _capture_list(client, ccb, selected, conc=10)
+
+        return {"ok": True, "already_done": False, "fast": True,
+                "done_hours": done_hours,
+                "target": ONLINE_TARGET_HOURS, "gap": gap,
+                "selected": len(selected), "started": stats["ok"],
+                "failed": stats["fail"], "errors": stats["errors"],
+                "n_course": stats["n_course"], "n_wk": stats["n_wk"],
+                "got_hours": stats["got_hours"]}
+    finally:
+        await client.aclose()
 
 
 # ==================== 添加课程 ====================
@@ -403,6 +758,9 @@ async def square_list(kind: str, offset: int = 0, limit: int = 20,
                     {"ok": False, "error": r.text[:300]}, status_code=r.status_code)
             rows = r.json().get("datas") or r.json().get("data") or []
             items = [_map_item(x) for x in rows]
+            local_map = await _local_video_map(ccb)
+            for it in items:
+                it["local_state"] = local_map.get(str(it["id"]), "")
             return {"ok": True, "items": items, "offset": offset,
                     "limit": limit, "show": show, "has_more": len(rows) >= limit}
 
@@ -449,6 +807,9 @@ async def square_list(kind: str, offset: int = 0, limit: int = 20,
                 break
 
         page_items = unlearned[offset:offset + limit]
+        local_map = await _local_video_map(ccb)
+        for it in page_items:
+            it["local_state"] = local_map.get(str(it["id"]), "")
         # has_more：未学序列在窗口后还有；或原始未扫完（可能还有未学）
         has_more = len(unlearned) > offset + limit or (
             raw_off < MAX_SCAN and not reached_end)
@@ -838,6 +1199,41 @@ async def clear_bucket(bucket: str = Form(...)):
     return {"ok": True, "deleted": n}
 
 
+APP_VERSION = "v3.36"
+
+
 @app.get("/api/version")
 async def version_info():
-    return {"version": "v3.22", "name": "建行学习刷课助手"}
+    return {"version": APP_VERSION, "name": "建行学习刷课助手"}
+
+
+@app.get("/api/announcement")
+async def get_announcement():
+    """返回当前版本公告及是否需要弹窗。
+
+    需要弹：无记录、seen!=1，或记录的版本与当前版本不一致（新版本自动重置）。
+    """
+    info = ANNOUNCEMENTS.get(APP_VERSION, {"date": "", "items": []})
+    async with SessionLocal() as session:
+        row = (await session.execute(select(Announcement).limit(1))).scalar_one_or_none()
+        should_show = row is None or row.seen != 1 or row.seen_version != APP_VERSION
+    return {
+        "version": APP_VERSION,
+        "date": info.get("date", ""),
+        "items": info.get("items", []),
+        "show": should_show,
+    }
+
+
+@app.post("/api/announcement/read")
+async def mark_announcement_read():
+    """关闭弹窗：置 seen=1，并同步当前版本号。"""
+    async with SessionLocal() as session:
+        row = (await session.execute(select(Announcement).limit(1))).scalar_one_or_none()
+        if row is None:
+            row = Announcement()
+            session.add(row)
+        row.seen = 1
+        row.seen_version = APP_VERSION
+        await session.commit()
+    return {"ok": True}

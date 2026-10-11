@@ -58,6 +58,8 @@ async def shutdown() -> None:
 
 
 async def _do_login(username: str, password: str) -> dict:
+    """username 以表单输入为准（localStorage 回读的 username 在登录后
+    仍可能是匿名值 'visitor'，不能作为数据归属身份）。"""
     browser: Browser = _state["browser"]
     context = await browser.new_context(
         viewport={"width": 1366, "height": 800},
@@ -108,10 +110,11 @@ async def _do_login(username: str, password: str) -> dict:
             raise RuntimeError("登录后票据异常")
 
         return {
+            # 归属身份用表单输入的登录账号，不用 localStorage.username
+            "username": username,
             "token": ls["token"],
             "user_id": ls["userId"],
             "org_id": ls["orgId"],
-            "username": ls["username"],
             "user_info": ls["CU_USERINFO"],
         }
     finally:

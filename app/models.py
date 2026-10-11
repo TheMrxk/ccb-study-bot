@@ -112,3 +112,18 @@ class TaskLog(Base):
     result: Mapped[str] = mapped_column(String(32), default="")
     message: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Announcement(Base):
+    """公告已读状态：单行记录。seen_version=已弹过的版本，seen=0未弹/1已弹。
+
+    seen_version 与当前 APP_VERSION 不一致时自动视为未弹（发版无需手动重置）。
+    """
+    __tablename__ = "announcement"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    seen_version: Mapped[str] = mapped_column(String(32), default="")
+    seen: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )

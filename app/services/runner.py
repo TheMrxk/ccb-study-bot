@@ -147,7 +147,11 @@ class Runner:
             cache.pop(ccb_user, None)
 
     async def _persist_account(self, data: dict) -> None:
-        uname = data.get("username") or "ccb_user"
+        uname = data.get("username") or ""
+        if not uname or uname == "visitor":
+            raise login_svc.LoginError(
+                "登录身份异常（visitor），请重新输入正确的建行账号登录"
+            )
         async with SessionLocal() as session:
             acc = (await session.execute(
                 select(Account).where(Account.username == uname)

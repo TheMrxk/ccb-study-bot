@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>建行学习刷课</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261008d">
+  <link rel="stylesheet" href="/static/style.css?v=20261010k">
 <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#4a7bff">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
@@ -85,6 +85,8 @@
           <div class="hours-card-title">{{ hc.name }}</div>
           {% if loop.index0 == 0 %}
           <button id="btnScan" class="corner-scan" type="button" title="一键扫描集中培训课程">🔍 一键扫描</button>
+          {% else %}
+          <button id="btnAutoFill" class="corner-scan" type="button" title="一键刷满网络自学学时">⚡ 一键刷满</button>
           {% endif %}
         </div>
         <div class="hours-numbers">
@@ -189,6 +191,46 @@
   </div>
 </div>
 
-<script src="/static/index.js?v=20261008d"></script>
+<!-- 一键刷满网络学时 弹窗 -->
+<div class="modal-mask" id="autoFillModal">
+  <div class="modal-box">
+    <div class="modal-title">⚡ 一键刷满网络自学</div>
+    <div class="modal-body" id="autoFillBody">
+      <p>目标：刷满 <b>51</b> 学时（保守值，超出年度最低要求）。</p>
+      <p style="color:var(--ink-400);font-size:13px">
+        系统将自动选择课程广场前 30 节未学课程，按真实学时累加；不足部分用微课补齐，然后自动开始刷课。
+      </p>
+      <p class="af-tip">
+        🛏 <b>强烈建议优先使用「躺平模式」</b>：节奏稳、不挑课，最贴近真人学习，<b>安全不易被平台察觉</b>。极速模式火力全开虽快，但并发过猛容易触发风控——求稳就躺平，让它慢慢帮你刷完。
+      </p>
+    </div>
+    <div class="modal-footer" id="autoFillFooter">
+      <button class="btn" id="btnAutoFillCancel" type="button">取消</button>
+      <button class="btn primary af-mode-btn" id="btnAutoFillFast" type="button"><span class="af-ico">⚡</span>极速刷满</button>
+      <button class="btn primary af-mode-btn" id="btnAutoFillStart" type="button"><span class="af-ico">🛏</span>&thinsp;躺平模式</button>
+    </div>
+  </div>
+</div>
+
+<!-- 版本公告弹窗（每次更新首次打开自动弹出） -->
+<div class="modal-mask" id="announceModal">
+  <div class="modal-box announce-box">
+    <div class="announce-head">
+      <span class="announce-bell">📣</span>
+      <div class="announce-head-text">
+        <div class="modal-title">更新公告</div>
+        <div class="announce-ver" id="announceVer"></div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <ul class="announce-list" id="announceList"></ul>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" id="closeAnnounce" type="button">我知道了</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/index.js?v=20261010k"></script>
 </body>
 </html>

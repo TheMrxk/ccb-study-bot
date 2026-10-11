@@ -62,12 +62,21 @@ function cardHtml(it) {
     it.course_count ? `📚 ${it.course_count} 节课` : "",
     it.total_hours ? `⏱ ${fmtHours(it.total_hours)} 课时` : "",
   ].filter(Boolean).join(" · ");
+  // 进程锁：本地在播 -> 「观看中」锁定；已添加未在播 -> 继续
+  let btn;
+  if (it.local_state === "playing") {
+    btn = `<button class="btn small cover-locked" type="button" disabled>▶ 观看中</button>`;
+  } else if (it.local_state === "added") {
+    btn = `<button class="btn small primary cover-learn js-learn" data-id="${it.id}">继续</button>`;
+  } else {
+    btn = `<button class="btn small primary cover-learn js-learn" data-id="${it.id}">学习</button>`;
+  }
   return `
-  <div class="cover-card" data-id="${it.id}">
+  <div class="cover-card${it.local_state === "playing" ? " is-playing" : ""}" data-id="${it.id}">
     <div class="cover-media">${cover}</div>
     <div class="cover-title" title="${it.title}">${it.title}</div>
     <div class="cover-meta">${meta}</div>
-    <button class="btn small primary cover-learn js-learn" data-id="${it.id}">学习</button>
+    ${btn}
   </div>`;
 }
 

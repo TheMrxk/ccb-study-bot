@@ -62,13 +62,22 @@ function cardHtml(it) {
     it.hours ? `⏱ ${fmt(it.hours)} 学时` : "",
     it.persons ? `👥 ${it.persons} 人学过` : "",
   ].filter(Boolean).join(" · ");
+  // 进程锁：本地正在播放 -> 按钮锁定为「观看中」，任何操作不可再选
+  let btn;
+  if (it.local_state === "playing") {
+    btn = `<button class="btn small cover-locked" type="button" disabled>▶ 观看中</button>`;
+  } else if (it.local_state === "added") {
+    btn = `<button class="btn small primary cover-learn" data-url="${it.knowledge_url}">继续</button>`;
+  } else {
+    btn = `<button class="btn small primary cover-learn" data-url="${it.knowledge_url}">学习</button>`;
+  }
   return `
-  <div class="cover-card">
+  <div class="cover-card${it.local_state === "playing" ? " is-playing" : ""}">
     <div class="cover-media">${cover}</div>
     <div class="cover-title" title="${it.title}">${it.title}</div>
     <div class="cover-meta">${meta}</div>
     <div class="cover-author">${it.author ? "🎤 " + it.author : it.dept || ""}</div>
-    <button class="btn small primary cover-learn" data-url="${it.knowledge_url}">学习</button>
+    ${btn}
   </div>`;
 }
 
@@ -128,25 +137,49 @@ $("#searchForm").addEventListener("submit", (e) => {
 
 moreBtn.addEventListener("click", () => load(false));
 
-// 学习前10节：收集当前已加载卡片前10条，逐条开刷，然后跳主页
+// 学习前10节：只选可学的新课（.cover-learn），自动跳过「观看中」锁定项。
+// 已加载不足10节可学课时，先自动加载更多再选。
 $("#btnLearn10").addEventListener("click", async () => {
-  const urls = Array.from(
-    document.querySelectorAll("#sqGrid .cover-learn")
-  ).slice(0, 10).map((b) => b.dataset.url);
-  if (!urls.length) { alert("列表还没加载出来"); return; }
+  const TAKE = 10;
   const btn = $("#btnLearn10");
   btn.disabled = true;
-  msg.textContent = `正在启动前 ${urls.length} 节…`;
-  let ok = 0;
-  for (const u of urls) {
-    try {
-      await postForm("/api/capture",
-        { url: "https://u.ccb.com" + u, kind: KIND });
-      ok += 1;
-    } catch (e) { /* 单条失败继续，不阻塞其余 */ }
+  try {
+    // 若当前可学新课不足10节且还有更多，先静默加载
+    let guard = 0;
+    while (collectLearnable().length < TAKE && hasMore && guard < 15) {
+      msg.textContent = "正在加载更多课程…";
+      await load(false);
+      guard += 1;
+    }
+    const urls = collectLearnable().slice(0, TAKE).map((b) => b.dataset.url);
+    if (!urls.length) { alert("没有可学的新课程了"); return; }
+    msg.textContent = `正在启动前 ${urls.length} 节新课…`;
+    let ok = 0;
+    for (const u of urls) {
+      try {
+        await postForm("/api/capture",
+          { url: "https://u.ccb.com" + u, kind: KIND });
+        ok += 1;
+        // 已提交的卡片立即锁定，防止重复点击/重复计数
+        const cardBtn = document.querySelector(
+          `.cover-learn[data-url="${CSS.escape(u)}"]`);
+        if (cardBtn) {
+          cardBtn.classList.remove("cover-learn", "primary");
+          cardBtn.classList.add("cover-locked");
+          cardBtn.disabled = true;
+          cardBtn.textContent = "▶ 观看中";
+        }
+      } catch (e) { /* 单条失败继续，不阻塞其余 */ }
+    }
+    msg.textContent = `已启动 ${ok}/${urls.length} 节，跳转主页…`;
+    setTimeout(() => (location.href = "/"), 600);
+  } finally {
+    btn.disabled = false;
   }
-  msg.textContent = `已启动 ${ok}/${urls.length} 节，跳转主页…`;
-  setTimeout(() => (location.href = "/"), 600);
 });
+
+function collectLearnable() {
+  return Array.from(document.querySelectorAll("#sqGrid .cover-learn"));
+}
 
 load(true);
