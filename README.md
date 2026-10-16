@@ -1,111 +1,143 @@
-# Course Bot · 在线学习自动进度助手
+# Course Bot · Online Learning Progress Assistant
 
-简体中文 · [English](./README.en.md)
+English · [简体中文](./README.zh.md)
 
-一个可**自部署**的容器化工具：通过模拟正常学习节奏的进度上报，自动推进在线学习平台上的
-课程进度。支持**专题班 / 课程 / 微课**三类内容，带封面卡片、批量学习与真实进度核对。
+A self-hostable, containerized tool that advances your progress on an online
+learning platform by reporting progress at a pace that simulates normal study.
+Supports **three content types — workshops, courses, and micro-lessons** — with
+cover-card UI, batch learning, and real progress verification.
 
-> ⚠️ **仅供个人学习与技术研究使用。** 下载或使用前请务必阅读
-> [免责声明](#免责声明) 与根目录 [LICENSE](./LICENSE)。
+> ⚠️ **For personal learning and technical research only.** Before downloading
+> or using this software, read the [Disclaimer](#disclaimer) and the
+> [LICENSE](./LICENSE) in the repository root.
 
 ---
 
-## ✨ 功能特性
+## ✨ Features
 
-- **三类学习内容**：专题班（自动报名）、课程、微课，统一的封面卡片界面。
-- **自动进度**：模拟真人节奏的进度上报，支持 1x / 2x 两档（2x 为平台可接受的安全上限）。
-- **批量学习**：一键「学习前 10 节」，无需逐个点击。
-- **真实进度核对**：以平台回执为准，进度未被平台确认时不会误标完成。
-- **工作台三栏**：正在学习 / 准备学习 / 已完成，自动归类。
-- **自托管**：Docker Compose 一键部署，数据保存在你自己的机器上。
-- **凭证安全**：账号密码仅在本次登录的内存中使用，不写入配置文件、不打印日志。
+- **Three content types**: workshops (with auto-enrollment), courses, and
+  micro-lessons, presented in a unified cover-card interface.
+- **Automatic progress**: progress reporting that mimics a realistic pace, with
+  1x / 2x modes (2x is the safe ceiling accepted by the platform).
+- **Batch learning**: one click to "learn the next 10 lessons" — no manual
+  clicking through each one.
+- **Real progress verification**: the platform's acknowledgement is the source
+  of truth; items are never marked complete unless the platform confirms them.
+- **Three-column dashboard**: in progress / up next / completed, sorted
+  automatically.
+- **Self-hosted**: one-command Docker Compose deployment; your data stays on
+  your own machine.
+- **Credential safety**: your username and password are used only in memory for
+  the current login — never written to config files or printed in logs.
 
-## 🖼️ 界面预览
+## 🖼️ Screenshots
 
-| 工作台 | 学习广场 |
+| Dashboard | Learning Plaza |
 |---|---|
-| ![工作台](./docs/v322-dashboard.jpg) | ![学习广场](./docs/v322-plazas.jpg) |
+| ![Dashboard](./docs/v322-dashboard.jpg) | ![Learning Plaza](./docs/v322-plazas.jpg) |
 
-| 公告 | 自动填充 | 广场详情 |
+| Announcement | Auto-fill | Plaza detail |
 |---|---|---|
-| ![公告](./docs/v336-announcement.jpg) | ![自动填充](./docs/v336-autofill.jpg) | ![广场详情](./docs/v336-square.jpg) |
+| ![Announcement](./docs/v336-announcement.jpg) | ![Auto-fill](./docs/v336-autofill.jpg) | ![Plaza detail](./docs/v336-square.jpg) |
 
-## 🧱 技术栈
+## 🧱 Tech Stack
 
-- 后端：Python · FastAPI · SQLAlchemy（async）· SQLite
-- 登录：Playwright（独立 login-worker 容器）
-- 前端：服务端渲染 + 原生 JS
-- 部署：Docker · Docker Compose
+- Backend: Python · FastAPI · SQLAlchemy (async) · SQLite
+- Login: Playwright (in a separate login-worker container)
+- Frontend: server-rendered pages + vanilla JavaScript
+- Deployment: Docker · Docker Compose
 
 ---
 
-## 🚀 快速开始（拉取成品镜像，推荐）
+## 🚀 Quick Start (pull the prebuilt image — recommended)
 
-> 本项目的**核心引擎以编译后的二进制（`.so`）随镜像分发，不提供源码、也不支持本地编译引擎**。
-> 请直接拉取官方镜像运行。自行用公开仓库源码构建将**缺失引擎而无法运行**。
+> The **core engine is distributed only as a compiled binary (`.so`) inside the
+> image. Source code for the engine is not provided and it cannot be built
+> locally.** Please run the official image. Building from the public repository
+> source will **omit the engine and will not run**.
 
-### 1. 环境要求
+### 1. Requirements
 
-- 已安装 Docker 与 Docker Compose（支持 x86_64 / amd64）。
+- Docker and Docker Compose installed (x86_64 / amd64).
 
-### 2. 准备配置
+### 2. Configuration
 
-复制下面的 `docker-compose.yml`，并在同目录创建 `.env`：
+Copy the `docker-compose.yml` below and create a `.env` file in the same
+directory:
 
 ```dotenv
-CCB_USERNAME=你的账号
-CCB_PASSWORD=你的密码
+CCB_USERNAME=your_username
+CCB_PASSWORD=your_password
 WEB_PORT=8090
 ```
 
-### 3. 一键启动
+### 3. Start
 
 ```bash
 docker compose up -d
 ```
 
-浏览器打开 `http://localhost:8090`，在登录页输入账号密码即可。
-所有数据与缓存均保存在本地 `./data` 卷中，不经过任何第三方服务器。
+Open `http://localhost:8090` in your browser and enter your credentials on the
+login page. All data and cache are stored locally in the `./data` volume and
+never pass through any third-party server.
 
 ---
 
-## 🔐 安全与隐私
+## 🔐 Security & Privacy
 
-- 账号、密码只在登录请求的内存中传递，**不落盘、不打印**，服务重启即失效。
-- 所有学习数据保存在你自己部署的数据库中，不经过作者或任何第三方服务器。
-- `.env` 与 `data/` 不应提交到任何代码仓库。
+- Your username and password are passed only in memory for the login request —
+  **never persisted to disk, never logged** — and are gone when the service
+  restarts.
+- All learning data is stored in your own self-hosted database; it never passes
+  through the author's or any third-party server.
+- `.env` and `data/` should never be committed to any code repository.
 
 ---
 
-## 📦 关于源码与引擎
+## 📦 Source Code & Engine
 
-本项目采用「**源码可见 + 引擎闭源二进制**」的发布方式：
+This project is released as **"visible source + closed-source engine
+binary"**:
 
-| 部分 | 形态 |
+| Part | Form |
 |---|---|
-| 路由、数据模型、前端页面、调度编排、发版工具链 | 明文源码，可查看、可审计 |
-| 平台接口封装、进度算法、签名等核心引擎 | 编译后的 `*.so`，仅随镜像分发 |
+| Routes, data models, front-end pages, scheduling/orchestration, release tooling | plain source, viewable and auditable |
+| Core engine — platform API wrappers, progress algorithms, request signing | compiled `*.so`, distributed only inside the image |
 
-查看源码与引擎的边界、镜像分发方式，请见根目录 [LICENSE](./LICENSE)；
-构建与脱敏工程位于 [`release/`](./release) 目录。
-
----
-
-## ⚖️ 许可
-
-本软件**不是开源软件**，采用「保留所有权利」的专有许可（见 [LICENSE](./LICENSE)）。
-你可以查看源码、拉取镜像自行部署，但**不得复制、再分发、镜像转存、商用、改名发布或去除署名**。
+For the boundary between source and engine and how images are distributed, see
+[LICENSE](./LICENSE); the build and desensitization tooling lives under
+[`release/`](./release).
 
 ---
 
-## 免责声明
+## ⚖️ License
 
-1. 本项目**仅用于个人学习与技术研究目的**，旨在探索 Web 自动化、容器化与前后端工程实践。
-2. 是否使用、如何使用完全是**使用者个人的自主行为**，使用者应自行了解并遵守所在单位及
-   平台的相关规定，并自行承担一切风险与后果。
-3. 作者不对任何人使用本工具所产生的任何直接或间接后果负责，包括但不限于账号异常、
-   学习记录被清除、纪律或管理处分等。
-4. 请**合理、节制**使用，不干扰平台正常运行，不利用本工具从事任何违规、违法活动。
-5. 本项目与任何机构、平台**无任何关联**，亦未获得其授权或背书；文中出现的名称仅用于
-   指代对应的技术服务。
-6. 下载、构建或开始使用，即视为已阅读、理解并同意本声明与 LICENSE 的全部内容。
+This software is **not open-source software**. It is released under a
+proprietary, all-rights-reserved license (see [LICENSE](./LICENSE)). You may
+view the source and pull the image to self-host, but you **may not copy,
+redistribute, mirror the image, use it commercially, republish it under a
+different name, or remove attribution**.
+
+---
+
+## Disclaimer
+
+1. This project is intended **solely for personal learning and technical
+   research**, exploring web automation, containerization, and front-end/back-end
+   engineering practices.
+2. Whether and how to use it is entirely **the user's own decision**. Users are
+   responsible for understanding and complying with the rules of their
+   organization and of the platform, and bear all risks and consequences
+   themselves.
+3. The author is not liable for any direct or indirect consequences arising from
+   anyone's use of this tool, including but not limited to account anomalies,
+   erased learning records, or disciplinary/administrative action.
+4. Please use it **reasonably and in moderation**; do not disrupt the normal
+   operation of the platform, and do not use this tool for any non-compliant or
+   illegal activity.
+5. This project is **not affiliated with** any organization or platform, nor
+   endorsed or authorized by them; names used herein refer only to the
+   corresponding technical services.
+6. Downloading, building, or starting to use this software constitutes that you
+   have read, understood, and agreed to the full contents of this disclaimer and
+   the LICENSE.
