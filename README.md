@@ -18,6 +18,16 @@
 - **自托管**：Docker Compose 一键部署，数据保存在你自己的机器上。
 - **凭证安全**：账号密码仅在本次登录的内存中使用，不写入配置文件、不打印日志。
 
+## 🖼️ 界面预览
+
+| 工作台 | 学习广场 |
+|---|---|
+| ![工作台](./docs/v322-dashboard.jpg) | ![学习广场](./docs/v322-plazas.jpg) |
+
+| 公告 | 自动填充 | 广场详情 |
+|---|---|---|
+| ![公告](./docs/v336-announcement.jpg) | ![自动填充](./docs/v336-autofill.jpg) | ![广场详情](./docs/v336-square.jpg) |
+
 ## 🧱 技术栈
 
 - 后端：Python · FastAPI · SQLAlchemy（async）· SQLite
