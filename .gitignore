@@ -1,0 +1,8 @@
+.env
+data/
+__pycache__/
+*.pyc
+*.db
+*.bak
+release/dist/
+sensitive_words.txt

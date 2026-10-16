@@ -1,0 +1,9 @@
+# 引擎白名单（v3.36.1 纯刷课版）：发版时编译为 .so，不进公开仓、只进成品镜像。
+# 每行一个相对 app/ 的路径，# 开头为注释。改编译范围只改本文件。
+# v3.36 不含考试模块（exam/exam_bank 是 v3.37+ 才有，本版不发布）。
+services/ccb_api.py
+services/progress.py
+services/signer.py
+services/sm3.py
+services/sync.py
+services/runner.py
