@@ -1,7 +1,7 @@
 # 发布版：直接拉取含引擎 .so 的成品镜像，不本地构建引擎。
 services:
   app:
-    image: ghcr.io/themrxk/ccb-study-app:v3.36.1
+    image: ghcr.io/supertuber-lab/ccb-study-app:v3.36.1
     container_name: ccb-course-bot-app
     restart: unless-stopped
     environment:
@@ -19,7 +19,7 @@ services:
       - ccb-net
 
   login-worker:
-    image: ghcr.io/themrxk/ccb-study-login:v3.36.1
+    image: ghcr.io/supertuber-lab/ccb-study-login:v3.36.1
     container_name: ccb-course-bot-login
     restart: unless-stopped
     environment:
