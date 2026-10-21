@@ -51,6 +51,26 @@ cover-card UI, batch learning, and real progress verification.
 
 ## 🚀 Quick Start (pull the prebuilt image — recommended)
 
+> 🔒 **Access required — private images.** The prebuilt images are hosted in a
+> **private** GHCR organization to prevent abuse. They cannot be pulled
+> anonymously.
+>
+> **How to get access:**
+> 1. Have a GitHub account (free).
+> 2. Send your **GitHub username** to the author via the official contact
+>    channel (community group / email in your invitation). Access is granted
+>    manually to verified users.
+> 3. Log in once on your machine:
+>    ```bash
+>    echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+>    ```
+>    Create the token at GitHub → Settings → Developer settings → Fine-grained
+>    tokens, with **read-only `Packages: Read`** permission (no other scopes
+>    needed).
+>
+> Access can be revoked at any time in case of abuse; the images remain free
+> for personal study use.
+
 > The **core engine is distributed only as a compiled binary (`.so`) inside the
 > image. Source code for the engine is not provided and it cannot be built
 > locally.** Please run the official image. Building from the public repository
